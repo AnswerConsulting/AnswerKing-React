@@ -1,3 +1,4 @@
+# Variables
 variable "profile" {}
 variable "access_key" {}
 variable "secret_key" {}
@@ -6,7 +7,6 @@ variable "bucket_name" {
 }
 
 # Configure the AWS provider
-
 provider "aws" {
   region     = "eu-west-2"
   profile =  "${var.profile}"
@@ -15,7 +15,6 @@ provider "aws" {
 }
 
 # S3 Bucket Policy
-
 resource "aws_s3_bucket_policy" "bucket_policy" {
   bucket = aws_s3_bucket.react_bucket.id
   policy = jsonencode({
@@ -43,7 +42,6 @@ resource "aws_s3_bucket" "react_bucket" {
 }
 
 # Upload the React app to the S3 bucket
-
 resource "aws_s3_bucket_object" "index_html" {
   bucket = aws_s3_bucket.react_bucket.id
   key    = "index.html"
@@ -85,7 +83,6 @@ variable "image_filenames" {
 }
 
 # Cloudfront Web Distribution
-
 resource "aws_cloudfront_origin_access_identity" "cloudfront_oia" {
   comment = "answerking-oia"
 }
@@ -137,7 +134,6 @@ resource "aws_cloudfront_distribution" "website_cdn" {
 }
 
 # Output
-
 output "website_cdn_id" {
   value = aws_cloudfront_distribution.website_cdn.id
 }
