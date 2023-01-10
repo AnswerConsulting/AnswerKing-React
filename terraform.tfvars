@@ -1,4 +1,4 @@
 # Add your AWS credentials here.
-profile = ""
+profile=""
 access_key=""
 secret_key=""

@@ -9,61 +9,118 @@ variable "bucket_name" {
 # Configure the AWS provider
 provider "aws" {
   region     = "eu-west-2"
-  profile =  "${var.profile}"
-  access_key = "${var.access_key}"
-  secret_key = "${var.secret_key}"
+  profile    = var.profile
+  access_key = var.access_key
+  secret_key = var.secret_key
 }
 
-# S3 Bucket Policy
-resource "aws_s3_bucket_policy" "bucket_policy" {
+resource "aws_s3_bucket" "react_bucket" {
+  bucket = var.bucket_name
+  acl    = "private"
+
+  tags = {
+    Name = "my-react-bucket"
+  }
+
+  versioning {
+    enabled = true
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "block_public_access" {
   bucket = aws_s3_bucket.react_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_website_configuration" "react-config" {
+  bucket = aws_s3_bucket.react_bucket.bucket
+
+  index_document {
+    suffix = "index.html"
+  }
+
+  error_document {
+    key = "index.html"
+  }
+
+  routing_rule {
+    condition {
+      key_prefix_equals = "docs/"
+    }
+    redirect {
+      replace_key_prefix_with = "documents/"
+    }
+  }
+}
+
+# Retrieve users as a resource
+data "aws_iam_user" "user" {
+  user_name = "Harry_Stead"
+}
+
+# Create the policy to access the S3 bucket
+resource "aws_iam_policy" "s3_policy" {
+  name        = "s3-policy"
+  path        = "/"
+  description = "S3 policy"
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "PublicReadGetObject"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.react_bucket.arn}/*"
+        Action = [
+          "s3:PutObject",
+          "s3:PutObjectAcl",
+          "s3:ListBucket"
+        ],
+        Effect = "Allow",
+        Resource = [
+          "${aws_s3_bucket.react_bucket.arn}/*"
+        ]
       },
     ]
   })
 }
 
-resource "aws_s3_bucket" "react_bucket" {
-  bucket = var.bucket_name
-  acl    = "public-read"
-
-  website {
-    index_document = "index.html"
-    error_document = "index.html"
-  }
+# Attach the policy to our user
+resource "aws_iam_policy_attachment" "user_policy_attachment" {
+  name       = "user-policy-attachment"
+  users      = [data.aws_iam_user.user.user_name]
+  policy_arn = aws_iam_policy.s3_policy.arn
 }
 
+resource "aws_s3_bucket_logging" "bucket_logging" {
+  bucket = aws_s3_bucket.react_bucket.id
+
+  target_bucket = aws_s3_bucket.react_bucket.id
+  target_prefix = "log/"
+}
+
+# Upload the React app to the S3 bucket
 # Upload the React app to the S3 bucket
 resource "aws_s3_bucket_object" "index_html" {
   bucket = aws_s3_bucket.react_bucket.id
   key    = "index.html"
   source = "dist/index.html"
   content_type = "text/html"
-  acl    = "public-read"
 }
 
 resource "aws_s3_bucket_object" "css_files" {
   bucket = aws_s3_bucket.react_bucket.id
-  key    = "/assets/index.0af4e829.css"
-  source = "dist/assets/index.0af4e829.css"
+  key    = "/assets/index-650b95c4.css"
+  source = "dist/assets/index-650b95c4.css"
   content_type = "text/css"
-  acl    = "public-read"
 }
 
 resource "aws_s3_bucket_object" "js_files" {
   bucket = aws_s3_bucket.react_bucket.id
-  key    = "/assets/index.b7557a3a.js"
-  source = "dist/assets/index.b7557a3a.js"
+  key    = "/assets/index-2c7a1f24.js"
+  source = "dist/assets/index-2c7a1f24.js"
   content_type = "application/javascript"
-  acl    = "public-read"
 }
 
 resource "aws_s3_bucket_object" "image_files" {
@@ -76,50 +133,97 @@ resource "aws_s3_bucket_object" "image_files" {
 variable "image_filenames" {
   type = list(string)
   default = [
-    "burger_transparent.e8cf04d5.png",
-    "burgerhome.3f16d8ea.png",
-    "logo.204f0d5a.png"
+    "burger_transparent-e8cf04d5.png",
+    "burgerhome-3f16d8ea.png",
+    "logo-204f0d5a.png"
   ]
 }
 
 # Cloudfront Web Distribution
-resource "aws_cloudfront_origin_access_identity" "cloudfront_oia" {
-  comment = "answerking-oia"
+locals {
+  s3_origin_id = "S3-origin-react-app"
 }
 
-resource "aws_cloudfront_distribution" "website_cdn" {
-  enabled = true
+resource "aws_cloudfront_origin_access_identity" "oai" {
+  comment = "react-app OAI"
+}
 
+resource "aws_cloudfront_distribution" "cf_distribution" {
   origin {
-    origin_id   = "origin-bucket-${aws_s3_bucket.react_bucket.id}"
-    domain_name = aws_s3_bucket.react_bucket.website_endpoint
+    domain_name = aws_s3_bucket.react_bucket.bucket_regional_domain_name
+    origin_id   = local.s3_origin_id
 
-    custom_origin_config {
-      http_port              = "80"
-      https_port             = "443"
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1", "TLSv1.1", "TLSv1.2"]
+    s3_origin_config {
+      origin_access_identity = aws_cloudfront_origin_access_identity.oai.cloudfront_access_identity_path
     }
   }
+
+  enabled         = true
+  is_ipv6_enabled = true
 
   default_root_object = "index.html"
 
   default_cache_behavior {
-    allowed_methods        = ["GET", "HEAD", "DELETE", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods         = ["GET", "HEAD"]
-    min_ttl                = "0"
-    default_ttl            = "300"
-    max_ttl                = "1200"
-    target_origin_id       = "origin-bucket-${aws_s3_bucket.react_bucket.id}"
-    viewer_protocol_policy = "redirect-to-https"
-    compress               = true
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = local.s3_origin_id
 
     forwarded_values {
       query_string = false
+
       cookies {
         forward = "none"
       }
     }
+
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
+    compress               = true
+  }
+
+  ordered_cache_behavior {
+    path_pattern     = "/index.html"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = local.s3_origin_id
+
+    forwarded_values {
+      query_string = false
+
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+  }
+
+  price_class = "PriceClass_100"
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  retain_on_delete = true
+
+  custom_error_response {
+    error_caching_min_ttl = 300
+    error_code            = 403
+    response_code         = 200
+    response_page_path    = "/index.html"
+  }
+
+  custom_error_response {
+    error_caching_min_ttl = 300
+    error_code            = 404
+    response_code         = 200
+    response_page_path    = "/index.html"
   }
 
   restrictions {
@@ -127,17 +231,21 @@ resource "aws_cloudfront_distribution" "website_cdn" {
       restriction_type = "none"
     }
   }
+}
 
-  viewer_certificate {
-    cloudfront_default_certificate = true
+data "aws_iam_policy_document" "react_app_s3_policy" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.react_bucket.arn}/*"]
+
+    principals {
+      type        = "AWS"
+      identifiers = [aws_cloudfront_origin_access_identity.oai.iam_arn]
+    }
   }
 }
 
-# Output
-output "website_cdn_id" {
-  value = aws_cloudfront_distribution.website_cdn.id
-}
-
-output "website_endpoint" {
-  value = aws_cloudfront_distribution.website_cdn.domain_name
+resource "aws_s3_bucket_policy" "react_app_bucket_policy" {
+  bucket = aws_s3_bucket.react_bucket.id
+  policy = data.aws_iam_policy_document.react_app_s3_policy.json
 }
