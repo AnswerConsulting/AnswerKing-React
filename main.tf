@@ -22,6 +22,11 @@ resource "aws_s3_bucket" "react_bucket" {
     Name = "my-react-bucket"
   }
 
+  logging {
+    target_bucket = var.bucket_name
+    target_prefix = "log/"
+  }
+
   versioning {
     enabled = true
   }
@@ -93,41 +98,33 @@ resource "aws_iam_policy_attachment" "user_policy_attachment" {
   policy_arn = aws_iam_policy.s3_policy.arn
 }
 
-resource "aws_s3_bucket_logging" "bucket_logging" {
-  bucket = aws_s3_bucket.react_bucket.id
-
-  target_bucket = aws_s3_bucket.react_bucket.id
-  target_prefix = "log/"
-}
-
-# Upload the React app to the S3 bucket
 # Upload the React app to the S3 bucket
 resource "aws_s3_bucket_object" "index_html" {
-  bucket = aws_s3_bucket.react_bucket.id
-  key    = "index.html"
-  source = "dist/index.html"
+  bucket       = aws_s3_bucket.react_bucket.id
+  key          = "index.html"
+  source       = "dist/index.html"
   content_type = "text/html"
 }
 
 resource "aws_s3_bucket_object" "css_files" {
-  bucket = aws_s3_bucket.react_bucket.id
-  key    = "/assets/index-650b95c4.css"
-  source = "dist/assets/index-650b95c4.css"
+  bucket       = aws_s3_bucket.react_bucket.id
+  key          = "/assets/index-650b95c4.css"
+  source       = "dist/assets/index-650b95c4.css"
   content_type = "text/css"
 }
 
 resource "aws_s3_bucket_object" "js_files" {
-  bucket = aws_s3_bucket.react_bucket.id
-  key    = "/assets/index-2c7a1f24.js"
-  source = "dist/assets/index-2c7a1f24.js"
+  bucket       = aws_s3_bucket.react_bucket.id
+  key          = "/assets/index-2c7a1f24.js"
+  source       = "dist/assets/index-2c7a1f24.js"
   content_type = "application/javascript"
 }
 
 resource "aws_s3_bucket_object" "image_files" {
-  count       = "${length(var.image_filenames)}"
-  bucket      = "${aws_s3_bucket.react_bucket.id}"
-  key         = "/assets/${var.image_filenames[count.index]}"
-  source      = "dist/assets/${var.image_filenames[count.index]}"
+  count  = length(var.image_filenames)
+  bucket = aws_s3_bucket.react_bucket.id
+  key    = "/assets/${var.image_filenames[count.index]}"
+  source = "dist/assets/${var.image_filenames[count.index]}"
 }
 
 variable "image_filenames" {
