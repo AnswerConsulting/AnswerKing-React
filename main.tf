@@ -39,7 +39,7 @@ data "aws_iam_policy_document" "read_react_app_bucket" {
 
 resource "aws_s3_bucket" "react" {
   bucket = var.bucket_name
-  acl    = "public-read"
+  acl    = "private"
 
   website {
     index_document = "index.html"
@@ -57,7 +57,7 @@ resource "aws_s3_bucket_public_access_block" "react" {
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
-  restrict_public_buckets = false
+  restrict_public_buckets = true
 }
 
 locals {
