@@ -113,6 +113,12 @@ resource "aws_cloudfront_distribution" "website_cdn" {
   default_root_object = "index.html"
   aliases             = ["answerking.co.uk"]
 
+  logging_config {
+    include_cookies = false
+    bucket          = aws_s3_bucket.react.bucket
+    prefix          = "react-log"
+  }
+
   default_cache_behavior {
     allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods         = ["GET", "HEAD"]
@@ -149,8 +155,8 @@ resource "aws_cloudfront_distribution" "website_cdn" {
   }
 
   viewer_certificate {
-    acm_certificate_arn = local.certificate_arn
-    ssl_support_method  = "sni-only"
+    acm_certificate_arn      = local.certificate_arn
+    ssl_support_method       = "sni-only"
     minimum_protocol_version = "TLSv1.2_2018"
   }
 }
