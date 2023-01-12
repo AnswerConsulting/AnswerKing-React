@@ -5,5 +5,15 @@ dist-ssr
 *.local
 .vs/
 .idea/
+
+# Cypress
 cypress/videos
 cypress/screenshots
+
+# Terraform
+.terraform
+.terraform.*
+*.tfstate
+*.tfstate.*
+**/.terraform/*
+*.tfvars.json
